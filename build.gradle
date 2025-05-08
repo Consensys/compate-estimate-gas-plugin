@@ -1,0 +1,26 @@
+plugins {
+  id 'java-library'
+}
+
+repositories {
+  maven {
+    url 'https://hyperledger.jfrog.io/hyperledger/besu-maven'
+    content { includeGroupByRegex('org\\.hyperledger\\..*') }
+  }
+  mavenCentral()
+  mavenLocal()
+}
+
+dependencies {
+  annotationProcessor platform('org.hyperledger.besu:bom:25.4.1')
+  implementation platform('org.hyperledger.besu:bom:25.4.1')
+
+  annotationProcessor 'com.google.auto.service:auto-service'
+  compileOnly 'com.google.auto.service:auto-service'
+
+  compileOnly 'org.slf4j:slf4j-api'
+
+  compileOnly 'org.hyperledger.besu:plugin-api'
+
+  compileOnly 'info.picocli:picocli'
+}
