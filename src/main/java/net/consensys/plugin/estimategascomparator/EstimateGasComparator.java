@@ -10,6 +10,8 @@ import org.hyperledger.besu.plugin.services.BesuEvents;
 import org.hyperledger.besu.plugin.services.PicoCLIOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.Marker;
+import org.slf4j.MarkerFactory;
 import picocli.CommandLine;
 
 import java.io.IOException;
@@ -30,7 +32,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @AutoService(BesuPlugin.class)
 public class EstimateGasComparator implements BesuPlugin, BesuEvents.TransactionAddedListener, BesuEvents.BlockAddedListener {
-
+  private static final Marker ESTIMATE_GAS_CALL = MarkerFactory.getMarker("ESTIMATE_GAS_CALL");
+  private static final Marker CONFIRMED_GAS_USED = MarkerFactory.getMarker("CONFIRMED_GAS_USED");
   private final static Logger log = LoggerFactory.getLogger(EstimateGasComparator.class);
   private final static AtomicLong id = new AtomicLong();
   private final static HttpClient httpClient = HttpClient.newBuilder().build();
@@ -102,7 +105,8 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
       } catch (IOException | InterruptedException e) {
         throw new RuntimeException(e);
       }
-    }).map(response -> parseResponse(response, tx)).sorted(Comparator.comparing(GasEstimation::client)).toList();
+    }).map(response -> parseResponse(reqBody, response, tx))
+        .sorted(Comparator.comparing(GasEstimation::client)).toList();
 
     var first = responses.get(0);
     log.info("\n>\t{}\t{}\t{}", tx.getHash(), first.client, first.gasEstimation);
@@ -122,23 +126,33 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
     return endpointUrlsByName.entrySet().stream().filter(e -> e.getValue().equals(uri)).findFirst().map(Map.Entry::getKey).orElseThrow();
   }
 
-  private GasEstimation parseResponse(final HttpResponse<String> response, final Transaction transaction) {
-    var body = response.body();
-    log.atTrace().setMessage("Response from {} for tx {}: {}")
-        .addArgument(() -> getClient(response.request().uri()))
-        .addArgument(transaction::getHash)
-        .addArgument(body)
-        .log();
+  private GasEstimation parseResponse(final String reqBody, final HttpResponse<String> response, final Transaction transaction) {
+    var respBody = response.body();
     long gasEstimation;
-    if (body.contains("result")) {
-      var idx1 = body.indexOf("\"result\"");
-      var idx2 = body.indexOf('"', idx1 + "\"result\"".length() + 1);
-      var idx3 = body.indexOf('"', idx2 + 1);
-      var gasEstimationHex = body.substring(idx2 + 1, idx3).substring(2);
+    if (respBody.contains("result")) {
+      var idx1 = respBody.indexOf("\"result\"");
+      var idx2 = respBody.indexOf('"', idx1 + "\"result\"".length() + 1);
+      var idx3 = respBody.indexOf('"', idx2 + 1);
+      var gasEstimationHex = respBody.substring(idx2 + 1, idx3).substring(2);
       gasEstimation = Long.parseLong(gasEstimationHex, 16);
     } else {
       gasEstimation = -1;
     }
+    var client = getClient(response.request().uri());
+    log.atInfo()
+        .addMarker(ESTIMATE_GAS_CALL)
+        .setMessage("tx {} client {} gas estimation {} request {} response {}")
+        .addArgument(transaction::getHash)
+        .addArgument(() -> getClient(response.request().uri()))
+        .addArgument(gasEstimation)
+        .addArgument(reqBody)
+        .addArgument(respBody)
+        .addKeyValue("tx", transaction.getHash())
+        .addKeyValue("request", reqBody)
+        .addKeyValue("response", respBody)
+        .addKeyValue("client", client)
+        .addKeyValue("gasEstimation", gasEstimation)
+        .log();
 
     return new GasEstimation(getClient(response.request().uri()), gasEstimation);
   }
@@ -194,6 +208,15 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
         log.info("Confirmed tx {} with gas used {}, estimations: {}", ctx.getHash(), gasUsed, estimations);
 
         estimations.stream()
+            .peek(e -> log.atInfo()
+                .addMarker(CONFIRMED_GAS_USED)
+                .addKeyValue("tx", ctx.getHash())
+                .addKeyValue("client", e.client)
+                .addKeyValue("gasEstimation", e.gasEstimation)
+                .addKeyValue("gasUsed", gasUsed)
+                .addKeyValue("diff", e.gasEstimation - gasUsed)
+                .log()
+            )
             .filter(e -> e.gasEstimation < gasUsed)
             .forEach(e -> log.warn("{} under estimated {} < gas used {} for tx {}. Other client estimates: {}",
                 e.client,

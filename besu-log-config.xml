@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration level="INFO" monitorInterval="5">
+
+    <Properties>
+        <Property name="root.log.level">INFO</Property>
+    </Properties>
+
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout alwaysWriteExceptions="false"
+                           pattern='{"@timestamp":"%d{ISO8601}","level":"%level","thread":"%t","class":"%c{1}","message":"%msg","throwable":"%enc{%throwable}{JSON}"}%n'/>
+        </Console>
+        <RollingFile name="EstimateGasCall" fileName="/data/besu/estimate-gas-call.csv"
+                     filePattern="/data/besu/estimate-gas-call-%d{yyyy-MM-dd}.csv.gz">
+            <PatternLayout pattern="%X{tx}|%X{client}|%X{gasEstimation}|%X{request}|%X{response}%n"/>
+            <Policies>
+                <OnStartupTriggeringPolicy/>
+                <TimeBasedTriggeringPolicy/>
+            </Policies>
+        </RollingFile>
+        <RollingFile name="ConfirmedGasUsed" fileName="/data/besu/confirmed-gas-used.csv"
+                     filePattern="/data/besu/confirmed-gas-used-%d{yyyy-MM-dd}.csv.gz">
+            <PatternLayout pattern="%X{tx}|%X{client}|%X{gasEstimation}|%X{gasUsed}|%X{diff}%n"/>
+            <Policies>
+                <OnStartupTriggeringPolicy/>
+                <TimeBasedTriggeringPolicy/>
+            </Policies>
+        </RollingFile>
+        <Routing name="Routing">
+            <Routes pattern="$${event:Marker}">
+                <Route key="ESTIMATE_GAS_CALL" ref="EstimateGasCall"/>
+                <Route key="CONFIRMED_GAS_USED" ref="ConfirmedGasUsed">
+                </Route>
+                <Route ref="Console"/>
+            </Routes>
+        </Routing>
+        <Console name="CEG" target="SYSTEM_OUT">
+            <PatternLayout alwaysWriteExceptions="false" pattern='%msg%n'/>
+        </Console>
+    </Appenders>
+
+    <Loggers>
+        <Root level="${sys:root.log.level}">
+            <AppenderRef ref="Console"/>
+        </Root>
+        <Logger name="net.consensys.plugin.estimategascomparator" level="TRACE" additivity="false">
+            <AppenderRef ref="Routing"/>
+        </Logger>
+        <!-- log peering disconnects -->
+        <Logger name="org.hyperledger.besu.ethereum.eth.manager.EthProtocolManager" level="INFO"/>
+
+        <!-- turn down the noise -->
+        <Logger name="org.apache.logging.log4j.status.StatusLogger" level="OFF"/>
+        <Logger name="org.apache.tuweni.discovery.DNSTimerTask">
+            <RegexFilter regex="Refreshing DNS records with .*" onMatch="DENY" onMismatch="NEUTRAL"/>
+        </Logger>
+        <Logger name="org.apache.tuweni.discovery.DNSResolver">
+            <RegexFilter regex="DNS query error with .*" onMatch="DENY" onMismatch="NEUTRAL"/>
+        </Logger>
+        <Logger name="io.vertx.core.dns.DnsException">
+            <RegexFilter regex="DNS query error occurred:.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+        </Logger>
+        <Logger name="org.hyperledger.besu.ethereum.eth.transactions">
+            <MarkerFilter marker="INVALID_TX_REMOVED" onMatch="DENY" onMismatch="NEUTRAL"/>
+        </Logger>
+        <Logger name="io.opentelemetry.extension.trace.propagation.B3PropagatorExtractorMultipleHeaders">
+            <RegexFilter regex="Invalid TraceId in B3 header:.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+        </Logger>
+    </Loggers>
+
+</Configuration>
