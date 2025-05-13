@@ -148,8 +148,8 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
         .addArgument(reqBody)
         .addArgument(respBody)
         .addKeyValue("tx", transaction.getHash())
-        .addKeyValue("request", reqBody)
-        .addKeyValue("response", respBody)
+        .addKeyValue("request", reqBody.trim())
+        .addKeyValue("response", respBody.trim())
         .addKeyValue("client", client)
         .addKeyValue("gasEstimation", gasEstimation)
         .log();
