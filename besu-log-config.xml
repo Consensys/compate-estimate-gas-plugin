@@ -20,7 +20,7 @@
         </RollingFile>
         <RollingFile name="ConfirmedGasUsed" fileName="/data/besu/confirmed-gas-used.csv"
                      filePattern="/data/besu/confirmed-gas-used-%d{yyyy-MM-dd}.csv.gz">
-            <PatternLayout pattern="%X{tx}|%X{client}|%X{gasEstimation}|%X{gasUsed}|%X{diff}%n"/>
+            <PatternLayout pattern="%X{tx}|%X{client}|%X{gasEstimation}|%X{gasUsed}|%X{diff}|%X{errorResponse}%n"/>
             <Policies>
                 <OnStartupTriggeringPolicy/>
                 <TimeBasedTriggeringPolicy/>

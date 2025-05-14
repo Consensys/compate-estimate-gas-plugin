@@ -103,7 +103,7 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
         log.atDebug().setMessage("Calling {} for tx {}").addArgument(() -> getClient(httpRequest.uri())).addArgument(tx::getHash).log();
         return httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
       } catch (IOException | InterruptedException e) {
-        throw new RuntimeException(e);
+        throw new RuntimeException(getClient(httpRequest.uri()), e);
       }
     }).map(response -> parseResponse(reqBody, response, tx))
         .sorted(Comparator.comparing(GasEstimation::client)).toList();
@@ -117,9 +117,7 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
             log.warn("\n!\t{}\t{}\t{} != {}", tx.getHash(), r.client, r.gasEstimation, first.gasEstimation)
         );
 
-    if(responses.stream().allMatch(r -> r.gasEstimation != -1)) {
-      gasEstimationsByTx.put(tx.getHash(), responses);
-    }
+    gasEstimationsByTx.put(tx.getHash(), responses);
   }
 
   private String getClient(final URI uri) {
@@ -127,7 +125,7 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
   }
 
   private GasEstimation parseResponse(final String reqBody, final HttpResponse<String> response, final Transaction transaction) {
-    var respBody = response.body();
+    var respBody = response.body().trim();
     long gasEstimation;
     if (respBody.contains("result")) {
       var idx1 = respBody.indexOf("\"result\"");
@@ -154,7 +152,7 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
         .addKeyValue("gasEstimation", gasEstimation)
         .log();
 
-    return new GasEstimation(getClient(response.request().uri()), gasEstimation);
+    return new GasEstimation(getClient(response.request().uri()), gasEstimation, gasEstimation == -1 ? respBody : null);
   }
 
   private String createRequest(final Transaction tx) {
@@ -215,6 +213,7 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
                 .addKeyValue("gasEstimation", e.gasEstimation)
                 .addKeyValue("gasUsed", gasUsed)
                 .addKeyValue("diff", e.gasEstimation - gasUsed)
+                .addKeyValue("errorResponse", e.errorResponse == null ? "" : e.errorResponse)
                 .log()
             )
             .filter(e -> e.gasEstimation < gasUsed)
@@ -229,10 +228,10 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
     }
   }
 
-  record GasEstimation(String client, long gasEstimation) {
+  record GasEstimation(String client, long gasEstimation, String errorResponse) {
     @Override
     public String toString() {
-      return client + "=" + gasEstimation;
+      return client + "=" + gasEstimation + (errorResponse != null ? " (" + errorResponse : ")");
     }
   }
 }
