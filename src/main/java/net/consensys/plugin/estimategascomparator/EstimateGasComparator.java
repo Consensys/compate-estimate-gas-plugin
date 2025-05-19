@@ -157,10 +157,10 @@ public class EstimateGasComparator implements BesuPlugin, BesuEvents.Transaction
 
   private String createRequest(final Transaction tx) {
     var sb = new StringBuilder("""
-        "from":"%s","value":"%s","data":"%s" """.formatted(
+        "from":"%s","value":"%s","input":"%s" """.formatted(
         tx.getSender().toHexString(),
         tx.getValue().toShortHexString(),
-        tx.getPayload().toShortHexString()
+        tx.getPayload().toHexString()
     ));
     tx.getTo().ifPresent(to -> sb.append(",\"to\":\"" + to.toHexString() + "\""));
     tx.getGasPrice().ifPresent(gasPrice -> sb.append(",\"gasPrice\":\"" + gasPrice.toShortHexString() + "\""));
